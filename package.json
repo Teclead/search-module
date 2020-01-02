@@ -1,0 +1,29 @@
+{
+  "name": "@teclead/search-module",
+  "version": "1.0.0",
+  "description": "An NPM module for the Teclead Serch Service.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Teclead/search-module.git"
+  },
+  "keywords": [
+    "Teclead",
+    "AEM",
+    "Search",
+    "Adobe",
+    "AEM",
+    "AEM",
+    "Experience",
+    "Manager"
+  ],
+  "author": "Teclead",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Teclead/search-module/issues"
+  },
+  "homepage": "https://github.com/Teclead/search-module#readme"
+}
