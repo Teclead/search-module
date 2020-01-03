@@ -1,4 +1,4 @@
-import { SearchSynonyms, SearchServiceOptions, SearchRankModel, SearchResultModel, CommonSearchModel, RawServerData } from './Search.model';
+import { SearchSynonyms, SearchServiceOptions, SearchRankModel, SearchResultModel, CommonSearchModel, RawServerData } from './models';
 import * as express from 'express';
 import * as fetch from 'isomorphic-fetch';
 import { readFileSync } from 'fs';
@@ -67,7 +67,7 @@ export abstract class AbstractSearchService {
      * transforms any json object to a CommonSearchModel
      * @param child an json object
      */
-    abstract getRawDataElement(child: any): CommonSearchModel
+    abstract getRawDataElement(child: any): any
 
     /**
      * creates a default rest endpoint for the search when express and a apiPath is set
