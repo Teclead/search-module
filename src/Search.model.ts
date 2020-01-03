@@ -28,3 +28,7 @@ export interface RawServerData {
     _jcrContent: { key: string }
 }
 export type SearchSynonyms = string[][]
+
+export enum AEMTypes {
+    Page = 'cq:Page'
+}

@@ -1,4 +1,4 @@
-import { SearchSynonyms, SearchServiceOptions, SearchRankModel, SearchResultModel, CommonSearchModel, RawServerData } from '../models/Search.model';
+import { SearchSynonyms, SearchServiceOptions, SearchRankModel, SearchResultModel, CommonSearchModel, RawServerData } from './Search.model';
 import * as express from 'express';
 import * as fetch from 'isomorphic-fetch';
 import { readFileSync } from 'fs';
@@ -175,7 +175,7 @@ export abstract class AbstractSearchService {
      */
     getSynonyms(search: string): string[] {
         let synonyms: string[] = [search.toLowerCase()];
-        this.synonymsList.forEach(list => {
+        this.synonymsList.forEach((list: string[]) => {
             const isSynonym = list.indexOf(search) > -1;
             // make sure all synonyms are to lowercase first
             if (isSynonym) {
