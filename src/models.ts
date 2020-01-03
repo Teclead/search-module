@@ -18,7 +18,7 @@ export interface SearchServiceOptions {
     serviceName: string
     cacheTime: number;
     express?: {
-        app: express.Application,
+        app: express.Application | any,
         apiPath: string;
     }
 }

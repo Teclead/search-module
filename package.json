@@ -6,7 +6,7 @@
   "scripts": {
     "test": "jest --watch",
     "build": "tsc",
-    "build:project": "rm -rf dist/ && npm run build && cp package.json ./dist && cp README.md ./dist && mkdir dist/lib && cp lib/synonyms.txt ./dist/lib/synonyms.txt"
+    "build:project": "rm -rf dist/ && npm run build && cp package.json ./dist && cp README.md ./dist && mkdir dist/lib && cp src/lib/synonyms.txt ./dist/lib/synonyms.txt"
   },
   "repository": {
     "type": "git",

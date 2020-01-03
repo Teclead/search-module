@@ -66,7 +66,29 @@ The constructor takes multiple arguments:
  new CustomSearchService({ serviceName: 'Custom Search Service', express: { apiPath: '/api/v1/search', app }, cacheTime: 5 })
  ```
 
+## Response
+An example response from the implemented custom Search with Adobe AEM Pages for the term `auto`.
 
+```json
+// 20200103180457
+// http://localhost:8082/api/v1/brandname-pages?search=auto
+{
+    "search": "auto,automobil,fahrbarer untersatz,pkw,personenwagen,personenkraftwagen,motorwagen,blechbüchse,wagen",
+    "foundItems": 21,
+    "results": [
+        {
+            "path": "/content/brandname/de/Produkte/KFZ-Versicherung/Autoversicherung",
+            "name": "Autoversicherung from Brandname",
+            "content": {
+               "productName": "Autoversicherung",
+               "description": "This is the page description."
+            },
+            "searchRank": 3
+        },
+        {...}
+    ]
+}
+```
 
 
 
