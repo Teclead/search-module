@@ -259,7 +259,7 @@ export abstract class AbstractSearchService {
      * returns a german synonym list
      */
     public getDefaultSynonyms(): SearchSynonyms {
-        const rawText = readFileSync(path.resolve(__dirname, '../../lib/synonyms.txt'), 'utf-8').toString()
+        const rawText = readFileSync(path.resolve(__dirname, '../lib/synonyms.txt'), 'utf-8').toString()
         const parsedSynonyms = rawText
             .split('\n')
             .map((line: string) => line.split(';')

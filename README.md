@@ -10,18 +10,15 @@ The Abstract Search needs to be implemented by a custom class. This is an exampl
 import { AbstractSearchService } from '@teclead/search-module/AbstractSearch.service';
 import { AEMTypes, CommonSearchModel, SearchRankModel } from '@teclead/search-module/models';
 
-export interface PageSearchModel extends CommonSearchModel {
+interface PageSearchModel extends CommonSearchModel {
     path: string;
     name: string;
     content: ContentModel;
 }
-export interface ContentModel {
+interface ContentModel {
     productName: string;
     description: string;
 }
-
-// keys to send in the rest api
-const pageContentKeys = ['productName', 'description'];
 
 export class CustomSearchService extends AbstractSearchService {
     public async setUpSearchService() {
@@ -30,7 +27,7 @@ export class CustomSearchService extends AbstractSearchService {
     }
 
     public getRawDataElement(child: any): PageSearchModel {
-        const content: ContentModel = this.getFilteredContent(child, pageContentKeys);
+        const content: ContentModel = this.getFilteredContent(child, ['productName', 'description']);
         const transformed = { ...child };
         return { path: transformed.path, name: transformed.name, content };
     }
