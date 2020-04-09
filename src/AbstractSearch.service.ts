@@ -115,7 +115,7 @@ export abstract class AbstractSearchService {
         if (!search) {
             return { search: 'not-definied', foundItems: 0, results: [] }
         }
-        search = search.trim()
+        search = search.trim().toLowerCase()
 
         const hasMultipleWords = search.split(' ').length > 1;
         const firstLevelSearch = this.searchForSingleWord(search);
