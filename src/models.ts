@@ -1,34 +1,39 @@
-import * as express from 'express';
+import * as express from "express";
 
 export interface SearchRankModel {
-    searchElement: string | string[]; rank: number;
+  searchElement: string | string[];
+  rank: number;
 }
 
 export interface CommonSearchModel {
-    searchRank?: number;
+  searchRank?: number;
 }
 
 export interface SearchResultModel {
-    search: string;
-    foundItems: number;
-    results: any[];
+  search: string;
+  foundItems: number;
+  results: any[];
 }
 
 export interface SearchServiceOptions {
-    serviceName: string
-    cacheTime: number;
-    express?: {
-        app: express.Application | any,
-        apiPath: string;
-    }
+  serviceName: string;
+  cacheTime: number;
+  express?: {
+    app: express.Application | any;
+    apiPath: string;
+  };
 }
 
 export interface RawServerData {
-    children: RawServerData[],
-    _jcrContent: { key: string }
+  children: RawServerData[];
+  _jcrContent: { key: string };
 }
-export type SearchSynonyms = string[][]
+export type SearchSynonyms = string[][];
 
 export enum AEMTypes {
-    Page = 'cq:Page'
+  Page = "cq:Page",
+}
+
+export interface SynonymsOfWord {
+  [key: string]: string[][];
 }
