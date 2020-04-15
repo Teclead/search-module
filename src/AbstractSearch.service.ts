@@ -93,12 +93,13 @@ export abstract class AbstractSearchService {
         `${this.options.express.apiPath}`,
         (req: express.Request, res: express.Response) => {
           const search = req.query.search;
+
           res.send(this.getSearchResult(search));
         }
       );
 
       this.options.express.app.get(
-        `/api/v1/synonyms`,
+        `${this.options.express.apiPath}/synonyms`,
         (req: express.Request, res: express.Response) => {
           const searchWord = req.query.word;
           res.send(this.getSynonymsOfWord(searchWord));
