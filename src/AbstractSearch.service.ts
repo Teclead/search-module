@@ -228,7 +228,9 @@ export abstract class AbstractSearchService {
     wordArray.forEach((word: string) => {
       const synonyms: string[][] = this.synonymsList.filter(
         (synonymList: string[]) => {
-          return synonymList.find((synonym: string) => synonym === word);
+          return synonymList.find(
+            (synonym: string) => synonym.toLowerCase() === word.toLowerCase()
+          );
         }
       );
       results[word] = synonyms;
