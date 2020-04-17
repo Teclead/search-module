@@ -29,6 +29,11 @@ export abstract class AbstractSearchService {
   abstract getSearchUrl(): string;
 
   /**
+   * a boolean to enable manual cache trigger. should be specified in the .env file
+   */
+  abstract enableCacheTrigger: boolean;
+
+  /**
    * return an array of SearchRankModels to define the importance of elements to search in
    * @param searchModel defines the structure of the search model
    */
@@ -50,21 +55,7 @@ export abstract class AbstractSearchService {
       `${this.options.serviceName} will update the cache every ${this.options.cacheTime} minutes`
     );
     setInterval(async () => {
-      console.info(
-        `Update Cache of ${this.options.serviceName}`,
-        new Date().toISOString()
-      );
-      try {
-        await this.getServerData();
-        for (const fn of this.serverDataCallBacks) {
-          await fn();
-        }
-      } catch (e) {
-        console.error(
-          `${this.options.serviceName} - setUpCacheInterval() =>`,
-          e
-        );
-      }
+      this.triggerGetServerData();
     }, 1000 * 60 * this.options.cacheTime);
   }
 
@@ -93,8 +84,27 @@ export abstract class AbstractSearchService {
         `${this.options.express.apiPath}`,
         (req: express.Request, res: express.Response) => {
           const search = req.query.search;
-
+          console.log(
+            `Looking for search result for "${search}" ${new Date().toISOString()}`
+          );
           res.send(this.getSearchResult(search));
+          console.log(
+            `Send response for search result "${search}" ${new Date().toISOString()}`
+          );
+        }
+      );
+
+      this.options.express.app.get(
+        `${this.options.express.apiPath}/updateCache`,
+        (req: express.Request, res: express.Response) => {
+          console.log(`Trying to trigger manual cache update`);
+          let response = "Manual cache update disabled";
+          if (this.enableCacheTrigger) {
+            this.triggerGetServerData();
+            response = `Manual cache update triggered`;
+          }
+          console.log(response);
+          res.send(response).status(200);
         }
       );
 
@@ -102,7 +112,11 @@ export abstract class AbstractSearchService {
         `${this.options.express.apiPath}/synonyms`,
         (req: express.Request, res: express.Response) => {
           const searchWord = req.query.word;
+          console.log(`Looking for synonyms of word "${searchWord}"`);
           res.send(this.getSynonymsOfWord(searchWord));
+          console.log(
+            `Send response for synonyms of word "${searchWord}" ${new Date().toISOString()}`
+          );
         }
       );
     } else {
@@ -111,29 +125,63 @@ export abstract class AbstractSearchService {
   }
 
   /**
+   * this method is used to manually trigger the cache update
+   */
+  triggerGetServerData() {
+    console.info(
+      `Update Cache of ${this.options.serviceName}`,
+      new Date().toISOString()
+    );
+    try {
+      this.getServerData().then(async () => {
+        console.log(`Finish loading cache ${new Date().toISOString()}`);
+        for (const fn of this.serverDataCallBacks) {
+          await fn();
+        }
+        console.log(`Finish serverDataCallbacks() ${new Date().toISOString()}`);
+      });
+    } catch (e) {
+      console.error(
+        `${
+          this.options.serviceName
+        } - ${new Date().toISOString()} - triggerGetServerData() =>`,
+        e
+      );
+    }
+  }
+  /**
    * fetches the raw data from the (AEM) server.
    * This will be done in intervall depending on the cache config to update the cached data.
    * The fetched data needs  structure like: {pathList:[{...}]}
    */
   async getServerData() {
     let data;
+    console.log(`Start fetching ${new Date().toISOString()}`);
     try {
       data = await (await fetch(this.getSearchUrl())).json();
+      console.log(`Done fetching ${new Date().toISOString()}`);
     } catch (e) {
-      console.warn(e);
+      console.warn(`Error while fetching ${new Date().toISOString()}`, e);
     }
 
     const isValidResponse = data && data.pathList && data.pathList.length > 0;
     if (isValidResponse) {
       this.rawData = [];
       data.pathList.forEach((startChild: any) => this.setUpData(startChild));
+      const regex: RegExp = new RegExp(/\A?authKey=[^&]+&*/g);
+      const searchServiceUrlLog: string = this.getSearchUrl().replace(
+        regex,
+        "authKey=**AUTHKEY**"
+      );
       console.info(
-        `fetching ${this.options.serviceName} - ${this.getSearchUrl} data done`,
+        `fetching ${this.options.serviceName} - ${searchServiceUrlLog} data done`,
         data
       );
     } else {
       console.warn(
-        `fetching ${this.options.serviceName} - ${this.getSearchUrl} data failed!`,
+        `fetching ${
+          this.options.serviceName
+        } - ${this.getSearchUrl()} data failed!`,
         data
       );
     }
@@ -222,6 +270,11 @@ export abstract class AbstractSearchService {
     return synonyms;
   }
 
+  /**
+   * takes a string (possibly separated by ,)
+   * and returns a json Object with all synonyms for each word
+   * @param searchWord
+   */
   getSynonymsOfWord(searchWord: string): SynonymsOfWord {
     let results: SynonymsOfWord = {};
     let wordArray: string[] = searchWord.split(",");
