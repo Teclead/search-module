@@ -15,7 +15,28 @@ import * as path from "path";
 export abstract class AbstractSearchService {
   protected rawData: any[] = [];
   protected synonymsList: SearchSynonyms = [];
-  private options: SearchServiceOptions;
+  public options: SearchServiceOptions;
+
+  /**
+   * This method can be used to build a delay for the fetching
+   * in case of having multiple instances of the search service.
+   * If there is only one instance, it should be 0
+   *
+   */
+  abstract instanceNumber: number;
+
+  /**
+   * This method can be used to build a delay for the fetching
+   * in case of having multiple instances of the search service.
+   * put the number of minutes which should be the delay
+   *
+   */
+  abstract instanceDelay: number;
+
+  /**
+   * a boolean to enable manual cache trigger. should be specified in the .env file
+   */
+  abstract enableCacheTrigger: boolean;
 
   /**
    * push different methods to this empty array
@@ -26,12 +47,13 @@ export abstract class AbstractSearchService {
   /**
    * a method which returns the url string to fetch data from the external (AEM) server
    */
-  abstract getSearchUrl(): string;
+  abstract getSearchUrl(): string | string[];
 
   /**
-   * a boolean to enable manual cache trigger. should be specified in the .env file
+   * This method can be used to inject custom headers
+   *
    */
-  abstract enableCacheTrigger: boolean;
+  abstract getSearchUrlRequestInits(): RequestInit;
 
   /**
    * return an array of SearchRankModels to define the importance of elements to search in
@@ -52,7 +74,7 @@ export abstract class AbstractSearchService {
    */
   setUpCacheInterval() {
     console.info(
-      `${this.options.serviceName} will update the cache every ${this.options.cacheTime} minutes`
+      `${this.options.serviceName} instance ${this.instanceNumber} will update the cache every ${this.options.cacheTime} minutes`
     );
     setInterval(async () => {
       this.triggerGetServerData();
@@ -63,12 +85,48 @@ export abstract class AbstractSearchService {
    * async method which will automatically get called
    * by index.ts
    */
-  async setUpSearchService() {
+  public async setUpSearchService() {
+    // for multi instance handling every new instance get's a delay of 5 minutes so fetching doesn't kill the server
+    if (this.instanceNumber) {
+      console.log(
+        `${this.options.serviceName} instance ${
+          this.instanceNumber
+        } will start fetching with a delay of ${
+          this.instanceNumber * this.instanceDelay
+        } minutes`
+      );
+      setTimeout(async () => {
+        this.setUp();
+      }, 1000 * 60 * (this.instanceDelay * this.instanceNumber));
+    } else {
+      console.log(
+        `${this.options.serviceName} instance ${this.instanceNumber} will start now.`
+      );
+      this.setUp();
+    }
+  }
+
+  protected async setUp() {
+    // call custom methods
+    await this.setUpCallbacksBefore();
+    //call set up methods
     this.setUpDefaultAPI();
     this.setUpCacheInterval();
     this.synonymsList = this.getDefaultSynonyms();
+    setTimeout(() => console.log(this.getDefaultSynonyms()), 2000);
+    // call custom methods
+    this.setUpCallbacksAfter();
   }
 
+  /***
+   * this method should be used to call custom methods before setting up the defaultAPI, cache interval and synonym list
+   */
+  abstract async setUpCallbacksBefore(): Promise<void>;
+
+  /***
+   * this method should be used to call custom methods after setting up the defaultAPI, cache interval and synonym list
+   */
+  abstract async setUpCallbacksAfter(): Promise<void>;
   /**
    * transforms any json object to a CommonSearchModel
    * @param child an json object
@@ -155,26 +213,42 @@ export abstract class AbstractSearchService {
    * The fetched data needs  structure like: {pathList:[{...}]}
    */
   async getServerData() {
-    let data;
-    console.log(`Start fetching ${new Date().toISOString()}`);
-    try {
-      data = await (await fetch(this.getSearchUrl())).json();
-      console.log(`Done fetching ${new Date().toISOString()}`);
-    } catch (e) {
-      console.warn(`Error while fetching ${new Date().toISOString()}`, e);
+    let data: any;
+
+    const searchUrls: string[] = Array.isArray(this.getSearchUrl())
+      ? (this.getSearchUrl() as string[])
+      : [...this.getSearchUrl()];
+
+    let isValidResponse: boolean = false;
+    let searchUrl: string = "";
+    for (let urlIndex in searchUrls) {
+      const url = searchUrls[urlIndex];
+      try {
+        console.log(
+          `Start fetching URL nr. ${urlIndex} with ${url} -  ${new Date().toISOString()}`
+        );
+        data = await (await fetch(url, this.getSearchUrlRequestInits())).json();
+        console.log(
+          `Done fetching URL nr. ${urlIndex} with ${url} - ${new Date().toISOString()}`
+        );
+        searchUrl = url;
+      } catch (e) {
+        console.warn(
+          `Error while fetching URL nr. ${urlIndex} with ${url} -  ${new Date().toISOString()}`,
+          e
+        );
+      }
+      isValidResponse = data && data.pathList && data.pathList.length > 0;
+      if (isValidResponse) {
+        break;
+      }
     }
 
-    const isValidResponse = data && data.pathList && data.pathList.length > 0;
     if (isValidResponse) {
       this.rawData = [];
       data.pathList.forEach((startChild: any) => this.setUpData(startChild));
-      const regex: RegExp = new RegExp(/\A?authKey=[^&]+&*/g);
-      const searchServiceUrlLog: string = this.getSearchUrl().replace(
-        regex,
-        "authKey=**AUTHKEY**"
-      );
       console.info(
-        `fetching ${this.options.serviceName} - ${searchServiceUrlLog} data done`,
+        `fetching ${this.options.serviceName} - ${searchUrl} data done`,
         data
       );
     } else {
