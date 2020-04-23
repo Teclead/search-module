@@ -6,6 +6,7 @@ import {
   CommonSearchModel,
   RawServerData,
   SynonymsOfWord,
+  PageContentKeys,
 } from "./models";
 import * as express from "express";
 import * as fetch from "isomorphic-fetch";
@@ -308,21 +309,24 @@ export abstract class AbstractSearchService {
   }
 
   /**
-   * filters the raw content child for the needed content keys
+   * filters the raw content child for the needed content keys. Injected manipulation method can be used to change 
+   * the content
    * @param contentChild a content child from the raw data of the (AEM) server api
    * @param pageContentKeys a list of strings which are used as keys in the content child to reduce the raw data
    */
   protected getFilteredContent(
     contentChild: RawServerData,
-    pageContentKeys: string[]
+    pageContentKeys: PageContentKeys[]
   ): any {
     const { _jcrContent }: any = contentChild;
     const content: any = {};
     _jcrContent &&
-      pageContentKeys.forEach((key) => {
-        const val = _jcrContent[key];
+      pageContentKeys.forEach((config) => {
+        const val = _jcrContent[config.key];
         if (val) {
-          content[key] = val;
+          content[config.key] = config.manipulation
+            ? config.manipulation(val)
+            : val;
         }
       });
     return content;

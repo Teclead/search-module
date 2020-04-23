@@ -37,3 +37,8 @@ export enum AEMTypes {
 export interface SynonymsOfWord {
   [key: string]: string[][];
 }
+
+export interface PageContentKeys {
+  key: string;
+  manipulation?: (val:string) => string;
+}
