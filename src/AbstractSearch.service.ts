@@ -304,7 +304,7 @@ export abstract class AbstractSearchService {
             .filter((searchElement) => searchElement.searchRank > 0)
             .sort((a, b) => b.searchRank - a.searchRank)
         : this.rawData) || [];
-    
+
     return { search: synonyms.toString(), foundItems: results.length, results };
   }
 
@@ -397,7 +397,7 @@ export abstract class AbstractSearchService {
    * @param searchModel an elements of the search model with a search rank
    * @param search the query of the search from a user
    */
-  private isKeyWordFoundInSynonym(
+  isKeyWordFoundInSynonym(
     searchModel: SearchRankModel,
     searchWithSynonyms: string[]
   ): boolean {
@@ -408,15 +408,23 @@ export abstract class AbstractSearchService {
     let isFound = false;
     const isArray = Array.isArray(searchModel.searchElement);
     // test if one of the synonyms is in the search model
-    for (const search of searchWithSynonyms) {
+    for (const synonym of searchWithSynonyms) {
       try {
         const found = isArray
-          ? (searchModel.searchElement as String[]).findIndex((e) =>
-              (e || "").toLowerCase().includes(search)
+          ? (searchModel.searchElement as string[]).findIndex(
+              (searchElement) => {
+                return this.matchKeywordToSynonym(
+                  synonym,
+                  searchElement,
+                  searchModel.fullMatch
+                );
+              }
             ) > -1
-          : (searchModel.searchElement as String)
-              .toLowerCase()
-              .includes(search);
+          : this.matchKeywordToSynonym(
+              synonym,
+              searchModel.searchElement as string,
+              searchModel.fullMatch
+            );
         if (found) {
           isFound = true;
           // no need for more iterations if the search is found
@@ -431,6 +439,18 @@ export abstract class AbstractSearchService {
     }
 
     return isFound;
+  }
+
+  matchKeywordToSynonym(
+    synonym: string,
+    searchElement: string,
+    fullMatch: boolean
+  ) {
+    if (fullMatch) {
+      return (searchElement || "").toLowerCase() === synonym;
+    } else {
+      return (searchElement || "").toLowerCase().includes(synonym);
+    }
   }
 
   /**

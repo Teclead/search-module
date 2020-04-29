@@ -2,6 +2,7 @@ import * as express from "express";
 
 export interface SearchRankModel {
   searchElement: string | string[];
+  fullMatch?:boolean,
   rank: number;
 }
 
