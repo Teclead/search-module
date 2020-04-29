@@ -295,7 +295,7 @@ export abstract class AbstractSearchService {
    * takes a string with one word and return a SearchResultModel
    * @param search a search string with only one word like: 'imprint'
    */
-  private searchForSingleWord(search: string): SearchResultModel {
+  searchForSingleWord(search: string): SearchResultModel {
     const synonyms = this.getSynonyms(search);
     const results =
       (search
@@ -304,12 +304,12 @@ export abstract class AbstractSearchService {
             .filter((searchElement) => searchElement.searchRank > 0)
             .sort((a, b) => b.searchRank - a.searchRank)
         : this.rawData) || [];
-
+    
     return { search: synonyms.toString(), foundItems: results.length, results };
   }
 
   /**
-   * filters the raw content child for the needed content keys. Injected manipulation method can be used to change 
+   * filters the raw content child for the needed content keys. Injected manipulation method can be used to change
    * the content
    * @param contentChild a content child from the raw data of the (AEM) server api
    * @param pageContentKeys a list of strings which are used as keys in the content child to reduce the raw data
