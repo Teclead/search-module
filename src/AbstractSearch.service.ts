@@ -7,6 +7,10 @@ import {
   RawServerData,
   SynonymsOfWord,
   PageContentKeys,
+  LastCacheUpdate,
+  ServerDataRequestConfig,
+  AEMTypes,
+  Status,
 } from "./models";
 import * as express from "express";
 import * as fetch from "isomorphic-fetch";
@@ -17,6 +21,7 @@ export abstract class AbstractSearchService {
   protected rawData: any[] = [];
   protected synonymsList: SearchSynonyms = [];
   public options: SearchServiceOptions;
+  public lastCacheUpdate: LastCacheUpdate;
 
   /**
    * This method can be used to build a delay for the fetching
@@ -48,7 +53,9 @@ export abstract class AbstractSearchService {
   /**
    * a method which returns the url string to fetch data from the external (AEM) server
    */
-  abstract getSearchUrl(): string | string[];
+  abstract getSearchUrl(
+    serverDataRequestConfig?: ServerDataRequestConfig
+  ): string | string[];
 
   /**
    * This method can be used to inject custom headers
@@ -73,7 +80,7 @@ export abstract class AbstractSearchService {
   /**
    * sets up the intetvall for refetching the data from the AEM
    */
-  setUpCacheInterval() {
+  async setUpCacheInterval(): Promise<void> {
     console.info(
       `${this.options.serviceName} instance ${this.instanceNumber} will update the cache every ${this.options.cacheTime} minutes`
     );
@@ -89,7 +96,7 @@ export abstract class AbstractSearchService {
   public async setUpSearchService() {
     // for multi instance handling every new instance get's a delay of 5 minutes so fetching doesn't kill the server
     if (this.instanceNumber) {
-      console.log(
+      console.info(
         `${this.options.serviceName} instance ${
           this.instanceNumber
         } will start fetching with a delay of ${
@@ -100,7 +107,7 @@ export abstract class AbstractSearchService {
         this.setUp();
       }, 1000 * 60 * (this.instanceDelay * this.instanceNumber));
     } else {
-      console.log(
+      console.info(
         `${this.options.serviceName} instance ${this.instanceNumber} will start now.`
       );
       this.setUp();
@@ -114,9 +121,8 @@ export abstract class AbstractSearchService {
     this.setUpDefaultAPI();
     this.setUpCacheInterval();
     this.synonymsList = this.getDefaultSynonyms();
-    setTimeout(() => console.log(this.getDefaultSynonyms()), 2000);
     // call custom methods
-    this.setUpCallbacksAfter();
+    await this.setUpCallbacksAfter();
   }
 
   /***
@@ -132,7 +138,7 @@ export abstract class AbstractSearchService {
    * transforms any json object to a CommonSearchModel
    * @param child an json object
    */
-  abstract getRawDataElement(child: any): any;
+  abstract getRawDataElement(child: any, type: AEMTypes): any;
 
   /**
    * creates a default rest endpoint for the search when express and a apiPath is set
@@ -143,11 +149,11 @@ export abstract class AbstractSearchService {
         `${this.options.express.apiPath}`,
         (req: express.Request, res: express.Response) => {
           const search = req.query.search;
-          console.log(
+          console.info(
             `Looking for search result for "${search}" ${new Date().toISOString()}`
           );
           res.send(this.getSearchResult(search));
-          console.log(
+          console.info(
             `Send response for search result "${search}" ${new Date().toISOString()}`
           );
         }
@@ -156,13 +162,26 @@ export abstract class AbstractSearchService {
       this.options.express.app.get(
         `${this.options.express.apiPath}/updateCache`,
         (req: express.Request, res: express.Response) => {
-          console.log(`Trying to trigger manual cache update`);
+          console.info(`Trying to trigger manual cache update`);
           let response = "Manual cache update disabled";
           if (this.enableCacheTrigger) {
             this.triggerGetServerData();
             response = `Manual cache update triggered`;
           }
-          console.log(response);
+          console.info(response);
+          res.send(response).status(200);
+        }
+      );
+
+      this.options.express.app.get(
+        `${this.options.express.apiPath}/lastCacheUpdate`,
+        (req: express.Request, res: express.Response) => {
+          console.info(`Returning last cache update`);
+          let response = "Manual cache update disabled";
+          if (this.enableCacheTrigger) {
+            response = `Last cache update at: ${this.lastCacheUpdate.time} - Status: ${this.lastCacheUpdate.status}`;
+          }
+          console.info(response);
           res.send(response).status(200);
         }
       );
@@ -171,9 +190,9 @@ export abstract class AbstractSearchService {
         `${this.options.express.apiPath}/synonyms`,
         (req: express.Request, res: express.Response) => {
           const searchWord = req.query.word;
-          console.log(`Looking for synonyms of word "${searchWord}"`);
+          console.info(`Looking for synonyms of word "${searchWord}"`);
           res.send(this.getSynonymsOfWord(searchWord));
-          console.log(
+          console.info(
             `Send response for synonyms of word "${searchWord}" ${new Date().toISOString()}`
           );
         }
@@ -186,19 +205,18 @@ export abstract class AbstractSearchService {
   /**
    * this method is used to manually trigger the cache update
    */
-  triggerGetServerData() {
+  async triggerGetServerData() {
     console.info(
       `Update Cache of ${this.options.serviceName}`,
       new Date().toISOString()
     );
     try {
-      this.getServerData().then(async () => {
-        console.log(`Finish loading cache ${new Date().toISOString()}`);
-        for (const fn of this.serverDataCallBacks) {
-          await fn();
-        }
-        console.log(`Finish serverDataCallbacks() ${new Date().toISOString()}`);
-      });
+      await this.getServerData();
+      console.info(`Finish loading cache ${new Date().toISOString()}`);
+      for (const fn of this.serverDataCallBacks) {
+        await fn();
+      }
+      console.info(`Finish serverDataCallbacks() ${new Date().toISOString()}`);
     } catch (e) {
       console.error(
         `${
@@ -213,23 +231,22 @@ export abstract class AbstractSearchService {
    * This will be done in intervall depending on the cache config to update the cached data.
    * The fetched data needs  structure like: {pathList:[{...}]}
    */
-  async getServerData() {
+  async getServerData(serverDataRequestConfig?: ServerDataRequestConfig) {
     let data: any;
-
-    const searchUrls: string[] = Array.isArray(this.getSearchUrl())
-      ? (this.getSearchUrl() as string[])
-      : [...this.getSearchUrl()];
-
+    const urls = this.getSearchUrl(serverDataRequestConfig);
+    const searchUrls: string[] = Array.isArray(urls)
+      ? (urls as string[])
+      : [...urls];
     let isValidResponse: boolean = false;
     let searchUrl: string = "";
     for (let urlIndex in searchUrls) {
       const url = searchUrls[urlIndex];
       try {
-        console.log(
+        console.info(
           `Start fetching URL nr. ${urlIndex} with ${url} -  ${new Date().toISOString()}`
         );
         data = await (await fetch(url, this.getSearchUrlRequestInits())).json();
-        console.log(
+        console.info(
           `Done fetching URL nr. ${urlIndex} with ${url} - ${new Date().toISOString()}`
         );
         searchUrl = url;
@@ -246,20 +263,32 @@ export abstract class AbstractSearchService {
     }
 
     if (isValidResponse) {
-      this.rawData = [];
-      data.pathList.forEach((startChild: any) => this.setUpData(startChild));
-      console.info(
-        `fetching ${this.options.serviceName} - ${searchUrl} data done`,
-        data
+      if (!serverDataRequestConfig || !this.rawData) {
+        this.rawData = [];
+      }
+      data.pathList.forEach((startChild: any) =>
+        this.setUpData(startChild, serverDataRequestConfig?.type)
       );
+      console.info(
+        `fetching ${this.options.serviceName} - ${searchUrl} data done`
+      );
+      this.lastCacheUpdate = {
+        time: new Date().toISOString(),
+        status: Status.Success,
+      };
     } else {
       console.warn(
-        `fetching ${
-          this.options.serviceName
-        } - ${this.getSearchUrl()} data failed!`,
+        `fetching ${this.options.serviceName} - ${JSON.stringify(
+          urls
+        )} data failed!`,
         data
       );
+      this.lastCacheUpdate = {
+        time: new Date().toISOString(),
+        status: Status.Error,
+      };
     }
+    return;
   }
 
   /**
@@ -283,7 +312,7 @@ export abstract class AbstractSearchService {
       for (const _search of secondSearchTerm) {
         const secondLevelSearch = this.searchForSingleWord(_search);
         if (secondLevelSearch.foundItems > 0) {
-          console.log("used second", _search);
+          console.info("used second", _search);
           return secondLevelSearch;
         }
       }
@@ -319,17 +348,31 @@ export abstract class AbstractSearchService {
     pageContentKeys: PageContentKeys[]
   ): any {
     const { _jcrContent }: any = contentChild;
-    const content: any = {};
-    _jcrContent &&
-      pageContentKeys.forEach((config) => {
-        const val = _jcrContent[config.key];
+    const content: any = this.getObjectKeys(_jcrContent, pageContentKeys);
+    return content;
+  }
+
+  protected getObjectKeys(obj: any, pageContentKeys: PageContentKeys[]) {
+    let mappedKeys: any = {};
+    if (obj) {
+      pageContentKeys.forEach((config: PageContentKeys) => {
+        const val = obj[config.key];
         if (val) {
-          content[config.key] = config.manipulation
-            ? config.manipulation(val)
-            : val;
+          if (Array.isArray(val)) {
+            mappedKeys[config.key] = config.manipulation
+              ? val.map((el) => config.manipulation(val))
+              : val;
+          } else if (typeof val === "object") {
+            mappedKeys[config.key] = this.getObjectKeys(val, pageContentKeys);
+          } else {
+            mappedKeys[config.key] = config.manipulation
+              ? config.manipulation(val)
+              : val;
+          }
         }
       });
-    return content;
+    }
+    return mappedKeys;
   }
 
   /**
@@ -437,7 +480,6 @@ export abstract class AbstractSearchService {
         );
       }
     }
-
     return isFound;
   }
 
@@ -447,9 +489,13 @@ export abstract class AbstractSearchService {
     fullMatch: boolean
   ) {
     if (fullMatch) {
-      return (searchElement || "").toLowerCase() === synonym;
+      return (
+        (searchElement || "").toLowerCase() === (synonym || "").toLowerCase()
+      );
     } else {
-      return (searchElement || "").toLowerCase().includes(synonym);
+      return (searchElement || "")
+        .toLowerCase()
+        .includes((synonym || "").toLowerCase());
     }
   }
 
@@ -457,15 +503,15 @@ export abstract class AbstractSearchService {
    *
    * @param data an array of raw data elements from the (AEM) server API
    */
-  protected setUpData(data: RawServerData[]) {
+  protected setUpData(data: RawServerData[], type: AEMTypes) {
     if (!data) {
       console.warn(`setUpData failed for ${this.options.serviceName}`);
       return;
     }
     data.forEach((child: RawServerData) => {
       if (child.children) {
-        this.rawData.push(this.getRawDataElement(child));
-        this.setUpData(child.children);
+        this.rawData.push(this.getRawDataElement(child, type));
+        this.setUpData(child.children, type);
       }
     });
   }
@@ -487,6 +533,7 @@ export abstract class AbstractSearchService {
           .toLowerCase()
       )
     );
+    console.info(`Loaded synonym list with ${parsedSynonyms.length} synonyms`);
     return parsedSynonyms;
   }
 }

@@ -46,11 +46,6 @@ export class CustomSearchService extends AbstractSearchService {
 
   async setUpCallbacksAfter() {}
 
-  public async setUpSearchService() {
-    await this.getServerData();
-    await super.setUpSearchService();
-  }
-
   public getRawDataElement(child: any): PageSearchModel {
     const content: ContentModel = this.getFilteredContent(
       child,

@@ -2,12 +2,13 @@ import * as express from "express";
 
 export interface SearchRankModel {
   searchElement: string | string[];
-  fullMatch?:boolean,
+  fullMatch?: boolean;
   rank: number;
 }
 
 export interface CommonSearchModel {
   searchRank?: number;
+  type?: AEMTypes;
 }
 
 export interface SearchResultModel {
@@ -33,13 +34,28 @@ export type SearchSynonyms = string[][];
 
 export enum AEMTypes {
   Page = "cq:Page",
+  Asset = "dam:Asset",
 }
 
+export interface ServerDataRequestConfig {
+  path: string;
+  type: AEMTypes;
+}
 export interface SynonymsOfWord {
   [key: string]: string[][];
 }
 
 export interface PageContentKeys {
   key: string;
-  manipulation?: (val:string) => string;
+  manipulation?: (val: string | string[]) => string;
+}
+
+export interface LastCacheUpdate {
+  time: string;
+  status: string;
+}
+
+export enum Status {
+  Success = "Success",
+  Error = "Error",
 }
