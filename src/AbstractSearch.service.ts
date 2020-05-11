@@ -85,8 +85,14 @@ export abstract class AbstractSearchService {
       `${this.options.serviceName} instance ${this.instanceNumber} will update the cache every ${this.options.cacheTime} minutes`
     );
     setInterval(async () => {
-      this.triggerGetServerData();
+      await this.cacheIntervalLifecycle();
     }, 1000 * 60 * this.options.cacheTime);
+  }
+
+  async cacheIntervalLifecycle(): Promise<void> {
+    await this.cacheIntervalBefore();
+    await this.triggerGetServerData();
+    await this.cacheIntervalAfter();
   }
 
   /**
@@ -134,6 +140,10 @@ export abstract class AbstractSearchService {
    * this method should be used to call custom methods after setting up the defaultAPI, cache interval and synonym list
    */
   abstract async setUpCallbacksAfter(): Promise<void>;
+
+  abstract async cacheIntervalBefore(): Promise<void>;
+
+  abstract async cacheIntervalAfter(): Promise<void>;
   /**
    * transforms any json object to a CommonSearchModel
    * @param child an json object
@@ -165,7 +175,7 @@ export abstract class AbstractSearchService {
           console.info(`Trying to trigger manual cache update`);
           let response = "Manual cache update disabled";
           if (this.enableCacheTrigger) {
-            this.triggerGetServerData();
+            this.cacheIntervalLifecycle();
             response = `Manual cache update triggered`;
           }
           console.info(response);
