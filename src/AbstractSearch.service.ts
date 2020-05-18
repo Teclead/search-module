@@ -243,6 +243,8 @@ export abstract class AbstractSearchService {
    */
   async getServerData(serverDataRequestConfig?: ServerDataRequestConfig) {
     let data: any;
+    let responseText: string;
+    let response: Response;
     const urls = this.getSearchUrl(serverDataRequestConfig);
     const searchUrls: string[] = Array.isArray(urls)
       ? (urls as string[])
@@ -255,7 +257,9 @@ export abstract class AbstractSearchService {
         console.info(
           `Start fetching URL nr. ${urlIndex} with ${url} -  ${new Date().toISOString()}`
         );
-        data = await (await fetch(url, this.getSearchUrlRequestInits())).json();
+        response = await fetch(url, this.getSearchUrlRequestInits());
+        responseText = await response.text();
+        data = JSON.parse(responseText || "{}");
         console.info(
           `Done fetching URL nr. ${urlIndex} with ${url} - ${new Date().toISOString()}`
         );
@@ -263,6 +267,7 @@ export abstract class AbstractSearchService {
       } catch (e) {
         console.warn(
           `Error while fetching URL nr. ${urlIndex} with ${url} -  ${new Date().toISOString()}`,
+          responseText,
           e
         );
       }
