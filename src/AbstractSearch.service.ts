@@ -11,6 +11,7 @@ import {
   ServerDataRequestConfig,
   AEMTypes,
   Status,
+  KeywordFound,
 } from "./models";
 import * as express from "express";
 import * as fetch from "isomorphic-fetch";
@@ -344,7 +345,9 @@ export abstract class AbstractSearchService {
     const results =
       (search
         ? this.rawData
-            .map((searchElement) => this.getSearchRank(searchElement, synonyms))
+            .map((searchElement) =>
+              this.getSearchRank(searchElement, synonyms, search)
+            )
             .filter((searchElement) => searchElement.searchRank > 0)
             .sort((a, b) => b.searchRank - a.searchRank)
         : this.rawData) || [];
@@ -436,15 +439,24 @@ export abstract class AbstractSearchService {
    */
   getSearchRank(
     searchModel: CommonSearchModel,
-    searchWithSynonyms: string[]
+    searchWithSynonyms: string[],
+    searchWord: string
   ): CommonSearchModel {
     const criteria = this.getSearchCriteria(searchModel) || [];
     // 0 indicates that there is no search result in that product
     searchModel.searchRank = 0;
     criteria.forEach((el) => {
-      if (this.isKeyWordFoundInSynonym(el, searchWithSynonyms)) {
+      const isKeyWordFoundInSynonym = this.isKeyWordFoundInSynonym(
+        el,
+        searchWithSynonyms,
+        searchWord
+      );
+      if (isKeyWordFoundInSynonym.found) {
         // multiple hits sum up the search rank
-        searchModel.searchRank = searchModel.searchRank + el.rank;
+        const elRank = isKeyWordFoundInSynonym.synonym
+          ? el.synonymRank
+          : el.rank;
+        searchModel.searchRank = searchModel.searchRank + elRank;
       }
     });
     return searchModel;
@@ -457,31 +469,41 @@ export abstract class AbstractSearchService {
    */
   isKeyWordFoundInSynonym(
     searchModel: SearchRankModel,
-    searchWithSynonyms: string[]
-  ): boolean {
+    searchWithSynonyms: string[],
+    searchWord: string
+  ): KeywordFound {
     if (!searchModel || !searchModel.searchElement) {
-      return false;
+      return { found: false, synonym: false };
     }
 
     let isFound = false;
     const isArray = Array.isArray(searchModel.searchElement);
     // test if one of the synonyms is in the search model
+    let isSynonym: boolean = false;
     for (const synonym of searchWithSynonyms) {
       try {
+        /*
+         * searchModel.fullMatch is relevant for keyword mapping
+         * because the injected path is not a synonym, but also 
+         * doesn't equal the search
+         * word
+         */
+        isSynonym = synonym !== searchWord && !searchModel.fullMatch;
+        const fullMatch = isSynonym ? isSynonym : searchModel.fullMatch;
         const found = isArray
           ? (searchModel.searchElement as string[]).findIndex(
               (searchElement) => {
                 return this.matchKeywordToSynonym(
                   synonym,
                   searchElement,
-                  searchModel.fullMatch
+                  fullMatch
                 );
               }
             ) > -1
           : this.matchKeywordToSynonym(
               synonym,
               searchModel.searchElement as string,
-              searchModel.fullMatch
+              fullMatch
             );
         if (found) {
           isFound = true;
@@ -495,18 +517,26 @@ export abstract class AbstractSearchService {
         );
       }
     }
-    return isFound;
+    return { found: isFound, synonym: isSynonym };
   }
 
   matchKeywordToSynonym(
     synonym: string,
     searchElement: string,
     fullMatch: boolean
-  ) {
-    if (fullMatch) {
+  ): boolean {
+    if (Array.isArray(searchElement)) {
       return (
-        (searchElement || "").toLowerCase() === (synonym || "").toLowerCase()
+        searchElement.filter((el) => {
+          return this.matchKeywordToSynonym(synonym, el, fullMatch);
+        }).length > 0
       );
+    }
+    if (fullMatch) {
+      return (searchElement || "")
+        .toLowerCase()
+        .split(" ")
+        .includes((synonym || "").toLowerCase());
     } else {
       return (searchElement || "")
         .toLowerCase()
@@ -540,13 +570,16 @@ export abstract class AbstractSearchService {
       "utf-8"
     ).toString();
     const parsedSynonyms = rawText.split("\n").map((line: string) =>
-      line.split(";").map((synonym) =>
-        synonym
-          .replace(/\(([^)]+)\)/, "")
-          .replace("  ", " ")
-          .trim()
-          .toLowerCase()
-      )
+      line
+        .split(";")
+        .map((synonym) =>
+          synonym
+            .replace(/\(([^)]+)\)/, "")
+            .replace("  ", " ")
+            .trim()
+            .toLowerCase()
+        )
+        .filter((el) => el !== "" && el !== " ")
     );
     console.info(`Loaded synonym list with ${parsedSynonyms.length} synonyms`);
     return parsedSynonyms;

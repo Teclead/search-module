@@ -4,6 +4,7 @@ export interface SearchRankModel {
   searchElement: string | string[];
   fullMatch?: boolean;
   rank: number;
+  synonymRank: number;
 }
 
 export interface CommonSearchModel {
@@ -58,4 +59,9 @@ export interface LastCacheUpdate {
 export enum Status {
   Success = "Success",
   Error = "Error",
+}
+
+export interface KeywordFound {
+  found: boolean;
+  synonym: boolean;
 }
