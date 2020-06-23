@@ -27,15 +27,10 @@ export abstract class AbstractSearchService {
   /**
    * This method can be used to build a delay for the fetching
    * in case of having multiple instances of the search service.
-   * If there is only one instance, it should be 0
-   *
-   */
-  abstract instanceNumber: number;
-
-  /**
-   * This method can be used to build a delay for the fetching
-   * in case of having multiple instances of the search service.
-   * put the number of minutes which should be the delay
+   * generate a random number with this code or set to 0 if only on instance is available
+   * Math.floor(Math.random() * Math.floor(max));
+   * e.g. for up to 5 minutes delay
+   * Math.floor(Math.random() * Math.floor(300000));
    *
    */
   abstract instanceDelay: number;
@@ -83,7 +78,7 @@ export abstract class AbstractSearchService {
    */
   async setUpCacheInterval(): Promise<void> {
     console.info(
-      `${this.options.serviceName} instance ${this.instanceNumber} will update the cache every ${this.options.cacheTime} minutes`
+      `${this.options.serviceName} will update the cache every ${this.options.cacheTime} minutes`
     );
     setInterval(async () => {
       await this.cacheIntervalLifecycle();
@@ -102,21 +97,15 @@ export abstract class AbstractSearchService {
    */
   public async setUpSearchService() {
     // for multi instance handling every new instance get's a delay of 5 minutes so fetching doesn't kill the server
-    if (this.instanceNumber) {
+    if (this.instanceDelay) {
       console.info(
-        `${this.options.serviceName} instance ${
-          this.instanceNumber
-        } will start fetching with a delay of ${
-          this.instanceNumber * this.instanceDelay
-        } minutes`
+        `${this.options.serviceName} will start fetching with a delay of ${this.instanceDelay} milliseconds`
       );
       setTimeout(async () => {
         this.setUp();
-      }, 1000 * 60 * (this.instanceDelay * this.instanceNumber));
+      }, this.instanceDelay);
     } else {
-      console.info(
-        `${this.options.serviceName} instance ${this.instanceNumber} will start now.`
-      );
+      console.info(`${this.options.serviceName} will start now.`);
       this.setUp();
     }
   }
@@ -318,7 +307,7 @@ export abstract class AbstractSearchService {
     search = search.trim().toLowerCase();
 
     const hasMultipleWords = search.split(" ").length > 1;
-    const firstLevelSearch = this.searchForSingleWord(search);
+    let firstLevelSearch = this.searchForSingleWord(search, false);
 
     if (firstLevelSearch.foundItems === 0 && hasMultipleWords) {
       // search for every word
@@ -326,13 +315,18 @@ export abstract class AbstractSearchService {
         .split(" ")
         .sort((a, b) => b.length - a.length);
       for (const _search of secondSearchTerm) {
-        const secondLevelSearch = this.searchForSingleWord(_search);
+        const secondLevelSearch = this.searchForSingleWord(_search, false);
         if (secondLevelSearch.foundItems > 0) {
           console.info("used second", _search);
           return secondLevelSearch;
         }
       }
     }
+
+    if (firstLevelSearch.results.length === 0) {
+      firstLevelSearch = this.searchForSingleWord(search, true);
+    }
+
     return firstLevelSearch;
   }
 
@@ -340,13 +334,21 @@ export abstract class AbstractSearchService {
    * takes a string with one word and return a SearchResultModel
    * @param search a search string with only one word like: 'imprint'
    */
-  searchForSingleWord(search: string): SearchResultModel {
+  searchForSingleWord(
+    search: string,
+    partialMatchesForSecondSearch: boolean
+  ): SearchResultModel {
     const synonyms = this.getSynonyms(search);
     const results =
       (search
         ? this.rawData
             .map((searchElement) =>
-              this.getSearchRank(searchElement, synonyms, search)
+              this.getSearchRank(
+                searchElement,
+                synonyms,
+                search,
+                partialMatchesForSecondSearch
+              )
             )
             .filter((searchElement) => searchElement.searchRank > 0)
             .sort((a, b) => b.searchRank - a.searchRank)
@@ -440,7 +442,8 @@ export abstract class AbstractSearchService {
   getSearchRank(
     searchModel: CommonSearchModel,
     searchWithSynonyms: string[],
-    searchWord: string
+    searchWord: string,
+    partialMatch: boolean
   ): CommonSearchModel {
     const criteria = this.getSearchCriteria(searchModel) || [];
     // 0 indicates that there is no search result in that product
@@ -449,7 +452,8 @@ export abstract class AbstractSearchService {
       const isKeyWordFoundInSynonym = this.isKeyWordFoundInSynonym(
         el,
         searchWithSynonyms,
-        searchWord
+        searchWord,
+        partialMatch
       );
       if (isKeyWordFoundInSynonym.found) {
         // multiple hits sum up the search rank
@@ -470,7 +474,8 @@ export abstract class AbstractSearchService {
   isKeyWordFoundInSynonym(
     searchModel: SearchRankModel,
     searchWithSynonyms: string[],
-    searchWord: string
+    searchWord: string,
+    partialMatch: boolean
   ): KeywordFound {
     if (!searchModel || !searchModel.searchElement) {
       return { found: false, synonym: false };
@@ -484,12 +489,16 @@ export abstract class AbstractSearchService {
       try {
         /*
          * searchModel.fullMatch is relevant for keyword mapping
-         * because the injected path is not a synonym, but also 
+         * because the injected path is not a synonym, but also
          * doesn't equal the search
          * word
          */
         isSynonym = synonym !== searchWord && !searchModel.fullMatch;
-        const fullMatch = isSynonym ? isSynonym : searchModel.fullMatch;
+        const fullMatch = partialMatch
+          ? false
+          : isSynonym
+          ? isSynonym
+          : searchModel.fullMatch;
         const found = isArray
           ? (searchModel.searchElement as string[]).findIndex(
               (searchElement) => {
