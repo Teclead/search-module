@@ -78,7 +78,7 @@ export class CustomSearchService extends AbstractSearchService {
       "http://localhost:4502",
       "http://localhost:4502",
     ];
-    const path = "/content/ergo/ergo-one/ergo-one-portal";
+    const path = "/content/brand/sub-brand/my-aem-brand-page";
     aemServerUrls = aemServerUrls.map(
       (url: string) =>
         `${url}/bin/company/asset-service.json?path=${path}&type=${AEMTypes.Page}`
