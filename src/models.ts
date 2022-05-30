@@ -1,4 +1,4 @@
-import * as express from "express";
+import * as express from 'express';
 
 export interface SearchRankModel {
   searchElement: string | string[];
@@ -34,8 +34,8 @@ export interface RawServerData {
 export type SearchSynonyms = string[][];
 
 export enum AEMTypes {
-  Page = "cq:Page",
-  Asset = "dam:Asset",
+  Page = 'cq:Page',
+  Asset = 'dam:Asset',
 }
 
 export interface ServerDataRequestConfig {
@@ -57,8 +57,8 @@ export interface LastCacheUpdate {
 }
 
 export enum Status {
-  Success = "Success",
-  Error = "Error",
+  Success = 'Success',
+  Error = 'Error',
 }
 
 export interface KeywordFound {
