@@ -1,22 +1,22 @@
+import * as express from 'express';
+import { readFileSync } from 'fs';
+import * as fetch from 'isomorphic-fetch';
+import * as path from 'path';
 import {
-  SearchSynonyms,
-  SearchServiceOptions,
+  AEMTypes,
+  CommonSearchModel,
+  KeywordFound,
+  LastCacheUpdate,
+  PageContentKeys,
+  RawServerData,
   SearchRankModel,
   SearchResultModel,
-  CommonSearchModel,
-  RawServerData,
-  SynonymsOfWord,
-  PageContentKeys,
-  LastCacheUpdate,
+  SearchServiceOptions,
+  SearchSynonyms,
   ServerDataRequestConfig,
-  AEMTypes,
   Status,
-  KeywordFound,
-} from "./models";
-import * as express from "express";
-import * as fetch from "isomorphic-fetch";
-import { readFileSync } from "fs";
-import * as path from "path";
+  SynonymsOfWord,
+} from './models';
 
 export abstract class AbstractSearchService {
   protected rawData: any[] = [];
@@ -49,9 +49,7 @@ export abstract class AbstractSearchService {
   /**
    * a method which returns the url string to fetch data from the external (AEM) server
    */
-  abstract getSearchUrl(
-    serverDataRequestConfig?: ServerDataRequestConfig
-  ): string | string[];
+  abstract getSearchUrl(serverDataRequestConfig?: ServerDataRequestConfig): string | string[];
 
   /**
    * This method can be used to inject custom headers
@@ -77,9 +75,7 @@ export abstract class AbstractSearchService {
    * sets up the intetvall for refetching the data from the AEM
    */
   async setUpCacheInterval(): Promise<void> {
-    console.info(
-      `${this.options.serviceName} will update the cache every ${this.options.cacheTime} minutes`
-    );
+    console.info(`${this.options.serviceName} will update the cache every ${this.options.cacheTime} minutes`);
     setInterval(async () => {
       await this.cacheIntervalLifecycle();
     }, 1000 * 60 * this.options.cacheTime);
@@ -124,16 +120,16 @@ export abstract class AbstractSearchService {
   /***
    * this method should be used to call custom methods before setting up the defaultAPI, cache interval and synonym list
    */
-  abstract async setUpCallbacksBefore(): Promise<void>;
+  abstract setUpCallbacksBefore(): Promise<void>;
 
   /***
    * this method should be used to call custom methods after setting up the defaultAPI, cache interval and synonym list
    */
-  abstract async setUpCallbacksAfter(): Promise<void>;
+  abstract setUpCallbacksAfter(): Promise<void>;
 
-  abstract async cacheIntervalBefore(): Promise<void>;
+  abstract cacheIntervalBefore(): Promise<void>;
 
-  abstract async cacheIntervalAfter(): Promise<void>;
+  abstract cacheIntervalAfter(): Promise<void>;
   /**
    * transforms any json object to a CommonSearchModel
    * @param child an json object
@@ -145,25 +141,18 @@ export abstract class AbstractSearchService {
    */
   private setUpDefaultAPI() {
     if (this.options.express && this.options.express.app) {
-      this.options.express.app.get(
-        `${this.options.express.apiPath}`,
-        (req: express.Request, res: express.Response) => {
-          const search = req.query.search;
-          console.info(
-            `Looking for search result for "${search}" ${new Date().toISOString()}`
-          );
-          res.send(this.getSearchResult(search));
-          console.info(
-            `Send response for search result "${search}" ${new Date().toISOString()}`
-          );
-        }
-      );
+      this.options.express.app.get(`${this.options.express.apiPath}`, (req: express.Request, res: express.Response) => {
+        const search = req.query.search;
+        console.info(`Looking for search result for "${search}" ${new Date().toISOString()}`);
+        res.send(this.getSearchResult(search.toString()));
+        console.info(`Send response for search result "${search}" ${new Date().toISOString()}`);
+      });
 
       this.options.express.app.get(
         `${this.options.express.apiPath}/updateCache`,
         (req: express.Request, res: express.Response) => {
           console.info(`Trying to trigger manual cache update`);
-          let response = "Manual cache update disabled";
+          let response = 'Manual cache update disabled';
           if (this.enableCacheTrigger) {
             this.cacheIntervalLifecycle();
             response = `Manual cache update triggered`;
@@ -177,7 +166,7 @@ export abstract class AbstractSearchService {
         `${this.options.express.apiPath}/lastCacheUpdate`,
         (req: express.Request, res: express.Response) => {
           console.info(`Returning last cache update`);
-          let response = "Manual cache update disabled";
+          let response = 'Manual cache update disabled';
           if (this.enableCacheTrigger) {
             response = `Last cache update at: ${this.lastCacheUpdate.time} - Status: ${this.lastCacheUpdate.status}`;
           }
@@ -191,14 +180,12 @@ export abstract class AbstractSearchService {
         (req: express.Request, res: express.Response) => {
           const searchWord = req.query.word;
           console.info(`Looking for synonyms of word "${searchWord}"`);
-          res.send(this.getSynonymsOfWord(searchWord));
-          console.info(
-            `Send response for synonyms of word "${searchWord}" ${new Date().toISOString()}`
-          );
+          res.send(this.getSynonymsOfWord(searchWord.toString()));
+          console.info(`Send response for synonyms of word "${searchWord}" ${new Date().toISOString()}`);
         }
       );
     } else {
-      console.info("No default API will be created");
+      console.info('No default API will be created');
     }
   }
 
@@ -206,10 +193,7 @@ export abstract class AbstractSearchService {
    * this method is used to manually trigger the cache update
    */
   async triggerGetServerData() {
-    console.info(
-      `Update Cache of ${this.options.serviceName}`,
-      new Date().toISOString()
-    );
+    console.info(`Update Cache of ${this.options.serviceName}`, new Date().toISOString());
     try {
       await this.getServerData();
       console.info(`Finish loading cache ${new Date().toISOString()}`);
@@ -218,12 +202,7 @@ export abstract class AbstractSearchService {
       }
       console.info(`Finish serverDataCallbacks() ${new Date().toISOString()}`);
     } catch (e) {
-      console.error(
-        `${
-          this.options.serviceName
-        } - ${new Date().toISOString()} - triggerGetServerData() =>`,
-        e
-      );
+      console.error(`${this.options.serviceName} - ${new Date().toISOString()} - triggerGetServerData() =>`, e);
     }
   }
   /**
@@ -236,23 +215,17 @@ export abstract class AbstractSearchService {
     let responseText: string;
     let response: Response;
     const urls = this.getSearchUrl(serverDataRequestConfig);
-    const searchUrls: string[] = Array.isArray(urls)
-      ? (urls as string[])
-      : [...urls];
+    const searchUrls: string[] = Array.isArray(urls) ? (urls as string[]) : [...urls];
     let isValidResponse: boolean = false;
-    let searchUrl: string = "";
+    let searchUrl: string = '';
     for (let urlIndex in searchUrls) {
       const url = searchUrls[urlIndex];
       try {
-        console.info(
-          `Start fetching URL nr. ${urlIndex} with ${url} -  ${new Date().toISOString()}`
-        );
+        console.info(`Start fetching URL nr. ${urlIndex} with ${url} -  ${new Date().toISOString()}`);
         response = await fetch(url, this.getSearchUrlRequestInits());
         responseText = await response.text();
-        data = JSON.parse(responseText || "{}");
-        console.info(
-          `Done fetching URL nr. ${urlIndex} with ${url} - ${new Date().toISOString()}`
-        );
+        data = JSON.parse(responseText || '{}');
+        console.info(`Done fetching URL nr. ${urlIndex} with ${url} - ${new Date().toISOString()}`);
         searchUrl = url;
       } catch (e) {
         console.warn(
@@ -271,23 +244,14 @@ export abstract class AbstractSearchService {
       if (!serverDataRequestConfig || !this.rawData) {
         this.rawData = [];
       }
-      data.pathList.forEach((startChild: any) =>
-        this.setUpData(startChild, serverDataRequestConfig?.type)
-      );
-      console.info(
-        `fetching ${this.options.serviceName} - ${searchUrl} data done`
-      );
+      data.pathList.forEach((startChild: any) => this.setUpData(startChild, serverDataRequestConfig?.type));
+      console.info(`fetching ${this.options.serviceName} - ${searchUrl} data done`);
       this.lastCacheUpdate = {
         time: new Date().toISOString(),
         status: Status.Success,
       };
     } else {
-      console.warn(
-        `fetching ${this.options.serviceName} - ${JSON.stringify(
-          urls
-        )} data failed!`,
-        data
-      );
+      console.warn(`fetching ${this.options.serviceName} - ${JSON.stringify(urls)} data failed!`, data);
       this.lastCacheUpdate = {
         time: new Date().toISOString(),
         status: Status.Error,
@@ -302,22 +266,20 @@ export abstract class AbstractSearchService {
    */
   getSearchResult(search: string): SearchResultModel {
     if (!search) {
-      return { search: "not-definied", foundItems: 0, results: [] };
+      return { search: 'not-definied', foundItems: 0, results: [] };
     }
     search = search.trim().toLowerCase();
 
-    const hasMultipleWords = search.split(" ").length > 1;
+    const hasMultipleWords = search.split(' ').length > 1;
     let firstLevelSearch = this.searchForSingleWord(search, false);
 
     if (firstLevelSearch.foundItems === 0 && hasMultipleWords) {
       // search for every word
-      const secondSearchTerm: string[] = search
-        .split(" ")
-        .sort((a, b) => b.length - a.length);
+      const secondSearchTerm: string[] = search.split(' ').sort((a, b) => b.length - a.length);
       for (const _search of secondSearchTerm) {
         const secondLevelSearch = this.searchForSingleWord(_search, false);
         if (secondLevelSearch.foundItems > 0) {
-          console.info("used second", _search);
+          console.info('used second', _search);
           return secondLevelSearch;
         }
       }
@@ -334,22 +296,12 @@ export abstract class AbstractSearchService {
    * takes a string with one word and return a SearchResultModel
    * @param search a search string with only one word like: 'imprint'
    */
-  searchForSingleWord(
-    search: string,
-    partialMatchesForSecondSearch: boolean
-  ): SearchResultModel {
+  searchForSingleWord(search: string, partialMatchesForSecondSearch: boolean): SearchResultModel {
     const synonyms = this.getSynonyms(search);
     const results =
       (search
         ? this.rawData
-            .map((searchElement) =>
-              this.getSearchRank(
-                searchElement,
-                synonyms,
-                search,
-                partialMatchesForSecondSearch
-              )
-            )
+            .map((searchElement) => this.getSearchRank(searchElement, synonyms, search, partialMatchesForSecondSearch))
             .filter((searchElement) => searchElement.searchRank > 0)
             .sort((a, b) => b.searchRank - a.searchRank)
         : this.rawData) || [];
@@ -363,10 +315,7 @@ export abstract class AbstractSearchService {
    * @param contentChild a content child from the raw data of the (AEM) server api
    * @param pageContentKeys a list of strings which are used as keys in the content child to reduce the raw data
    */
-  protected getFilteredContent(
-    contentChild: RawServerData,
-    pageContentKeys: PageContentKeys[]
-  ): any {
+  protected getFilteredContent(contentChild: RawServerData, pageContentKeys: PageContentKeys[]): any {
     const { _jcrContent }: any = contentChild;
     const content: any = this.getObjectKeys(_jcrContent, pageContentKeys);
     return content;
@@ -379,15 +328,11 @@ export abstract class AbstractSearchService {
         const val = obj[config.key];
         if (val) {
           if (Array.isArray(val)) {
-            mappedKeys[config.key] = config.manipulation
-              ? val.map((el) => config.manipulation(val))
-              : val;
-          } else if (typeof val === "object") {
+            mappedKeys[config.key] = config.manipulation ? val.map((el) => config.manipulation(val)) : val;
+          } else if (typeof val === 'object') {
             mappedKeys[config.key] = this.getObjectKeys(val, pageContentKeys);
           } else {
-            mappedKeys[config.key] = config.manipulation
-              ? config.manipulation(val)
-              : val;
+            mappedKeys[config.key] = config.manipulation ? config.manipulation(val) : val;
           }
         }
       });
@@ -418,15 +363,11 @@ export abstract class AbstractSearchService {
    */
   getSynonymsOfWord(searchWord: string): SynonymsOfWord {
     let results: SynonymsOfWord = {};
-    let wordArray: string[] = searchWord.split(",");
+    let wordArray: string[] = searchWord.split(',');
     wordArray.forEach((word: string) => {
-      const synonyms: string[][] = this.synonymsList.filter(
-        (synonymList: string[]) => {
-          return synonymList.find(
-            (synonym: string) => synonym.toLowerCase() === word.toLowerCase()
-          );
-        }
-      );
+      const synonyms: string[][] = this.synonymsList.filter((synonymList: string[]) => {
+        return synonymList.find((synonym: string) => synonym.toLowerCase() === word.toLowerCase());
+      });
       results[word] = synonyms;
     });
     return results;
@@ -449,17 +390,10 @@ export abstract class AbstractSearchService {
     // 0 indicates that there is no search result in that product
     searchModel.searchRank = 0;
     criteria.forEach((el) => {
-      const isKeyWordFoundInSynonym = this.isKeyWordFoundInSynonym(
-        el,
-        searchWithSynonyms,
-        searchWord,
-        partialMatch
-      );
+      const isKeyWordFoundInSynonym = this.isKeyWordFoundInSynonym(el, searchWithSynonyms, searchWord, partialMatch);
       if (isKeyWordFoundInSynonym.found) {
         // multiple hits sum up the search rank
-        const elRank = isKeyWordFoundInSynonym.synonym
-          ? el.synonymRank
-          : el.rank;
+        const elRank = isKeyWordFoundInSynonym.synonym ? el.synonymRank : el.rank;
         searchModel.searchRank = searchModel.searchRank + elRank;
       }
     });
@@ -494,46 +428,25 @@ export abstract class AbstractSearchService {
          * word
          */
         isSynonym = synonym !== searchWord && !searchModel.fullMatch;
-        const fullMatch = partialMatch
-          ? false
-          : isSynonym
-          ? isSynonym
-          : searchModel.fullMatch;
+        const fullMatch = partialMatch ? false : isSynonym ? isSynonym : searchModel.fullMatch;
         const found = isArray
-          ? (searchModel.searchElement as string[]).findIndex(
-              (searchElement) => {
-                return this.matchKeywordToSynonym(
-                  synonym,
-                  searchElement,
-                  fullMatch
-                );
-              }
-            ) > -1
-          : this.matchKeywordToSynonym(
-              synonym,
-              searchModel.searchElement as string,
-              fullMatch
-            );
+          ? (searchModel.searchElement as string[]).findIndex((searchElement) => {
+              return this.matchKeywordToSynonym(synonym, searchElement, fullMatch);
+            }) > -1
+          : this.matchKeywordToSynonym(synonym, searchModel.searchElement as string, fullMatch);
         if (found) {
           isFound = true;
           // no need for more iterations if the search is found
           break;
         }
       } catch (e) {
-        console.warn(
-          `${this.options.serviceName} - foundKeyWordOrSynonym()`,
-          e
-        );
+        console.warn(`${this.options.serviceName} - foundKeyWordOrSynonym()`, e);
       }
     }
     return { found: isFound, synonym: isSynonym };
   }
 
-  matchKeywordToSynonym(
-    synonym: string,
-    searchElement: string,
-    fullMatch: boolean
-  ): boolean {
+  matchKeywordToSynonym(synonym: string, searchElement: string, fullMatch: boolean): boolean {
     if (Array.isArray(searchElement)) {
       return (
         searchElement.filter((el) => {
@@ -542,14 +455,12 @@ export abstract class AbstractSearchService {
       );
     }
     if (fullMatch) {
-      return (searchElement || "")
+      return (searchElement || '')
         .toLowerCase()
-        .split(" ")
-        .includes((synonym || "").toLowerCase());
+        .split(' ')
+        .includes((synonym || '').toLowerCase());
     } else {
-      return (searchElement || "")
-        .toLowerCase()
-        .includes((synonym || "").toLowerCase());
+      return (searchElement || '').toLowerCase().includes((synonym || '').toLowerCase());
     }
   }
 
@@ -574,21 +485,18 @@ export abstract class AbstractSearchService {
    * returns a german synonym list
    */
   public getDefaultSynonyms(): SearchSynonyms {
-    const rawText = readFileSync(
-      path.resolve(__dirname, "./lib/synonyms.txt"),
-      "utf-8"
-    ).toString();
-    const parsedSynonyms = rawText.split("\n").map((line: string) =>
+    const rawText = readFileSync(path.resolve(__dirname, './lib/synonyms.txt'), 'utf-8').toString();
+    const parsedSynonyms = rawText.split('\n').map((line: string) =>
       line
-        .split(";")
+        .split(';')
         .map((synonym) =>
           synonym
-            .replace(/\(([^)]+)\)/, "")
-            .replace("  ", " ")
+            .replace(/\(([^)]+)\)/, '')
+            .replace('  ', ' ')
             .trim()
             .toLowerCase()
         )
-        .filter((el) => el !== "" && el !== " ")
+        .filter((el) => el !== '' && el !== ' ')
     );
     console.info(`Loaded synonym list with ${parsedSynonyms.length} synonyms`);
     return parsedSynonyms;
