@@ -1,6 +1,6 @@
 {
   "name": "@teclead/search-module",
-  "version": "1.0.23",
+  "version": "1.0.24",
   "private": false,
   "description": "An NPM module for the Teclead Search Service which can be used for Adobe AEM or other Content Management Systems.",
   "scripts": {
